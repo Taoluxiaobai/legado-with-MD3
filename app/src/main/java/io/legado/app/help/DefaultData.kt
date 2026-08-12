@@ -2,9 +2,11 @@ package io.legado.app.help
 
 import io.legado.app.constant.AppConst
 import io.legado.app.data.appDb
+import io.legado.app.data.entities.BookSource
 import io.legado.app.data.entities.DictRule
 import io.legado.app.data.entities.HttpTTS
 import io.legado.app.data.entities.KeyboardAssist
+import io.legado.app.data.entities.ReplaceRule
 import io.legado.app.data.entities.RssSource
 import io.legado.app.data.entities.TxtTocRule
 import io.legado.app.help.config.LocalConfig
@@ -35,6 +37,12 @@ object DefaultData {
                 }
                 if (LocalConfig.needUpDictRule) {
                     importDefaultDictRules()
+                }
+                if (LocalConfig.needUpReplaceRule) {
+                    importDefaultReplaceRules()
+                }
+                if (LocalConfig.needUpBookSources) {
+                    importDefaultBookSources()
                 }
             }.onError {
                 it.printOnDebug()
@@ -110,6 +118,22 @@ object DefaultData {
         GSON.fromJsonArray<KeyboardAssist>(json).getOrThrow()
     }
 
+    val replaceRules: List<ReplaceRule> by lazy {
+        val json = String(
+            appCtx.assets.open("defaultData${File.separator}replaceRules.json")
+                .readBytes()
+        )
+        GSON.fromJsonArray<ReplaceRule>(json).getOrDefault(emptyList())
+    }
+
+    val bookSources: List<BookSource> by lazy {
+        val json = String(
+            appCtx.assets.open("defaultData${File.separator}bookSources.json")
+                .readBytes()
+        )
+        GSON.fromJsonArray<BookSource>(json).getOrDefault(emptyList())
+    }
+
     fun importDefaultHttpTTS() {
         appDb.httpTTSDao.deleteDefault()
         appDb.httpTTSDao.insert(*httpTTS.toTypedArray())
@@ -127,6 +151,14 @@ object DefaultData {
 
     fun importDefaultDictRules() {
         appDb.dictRuleDao.insert(*dictRules.toTypedArray())
+    }
+
+    fun importDefaultReplaceRules() {
+        appDb.replaceRuleDao.insert(*replaceRules.toTypedArray())
+    }
+
+    fun importDefaultBookSources() {
+        appDb.bookSourceDao.insert(*bookSources.toTypedArray())
     }
 
 }

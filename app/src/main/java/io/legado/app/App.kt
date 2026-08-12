@@ -70,6 +70,7 @@ import io.legado.app.utils.LogUtils
 import io.legado.app.utils.getPrefBoolean
 import io.legado.app.utils.getPrefString
 import io.legado.app.utils.isDebuggable
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -188,6 +189,9 @@ class App : Application(), SingletonImageLoader.Factory {
                 }
         }
         Coroutine.async {
+            installBuiltinFonts()
+        }
+        Coroutine.async {
             LogUtils.init(this@App)
             LogUtils.d("App", "onCreate")
             LogUtils.logDeviceInfo()
@@ -233,6 +237,38 @@ class App : Application(), SingletonImageLoader.Factory {
             if (AppConfig.syncBookProgress) {
                 AppWebDav.upConfig()
                 AppWebDav.downloadAllBookProgress()
+            }
+        }
+    }
+
+    /**
+     * 首次启动时将 assets/fonts 下的内置字体复制到 files/font，
+     * 阅读器字体列表（FontLoader 自动枚举 getExternalFilesDir/font）开箱即用。
+     * 目标文件已存在且非空则跳过，避免每次启动重复复制。
+     * 复制完成后，若用户从未设置过正文/全局字体，默认正文切到内置文楷。
+     */
+    private suspend fun installBuiltinFonts() = withContext(Dispatchers.IO) {
+        runCatching {
+            val base = getExternalFilesDir(null)?.absolutePath ?: filesDir.absolutePath
+            val fontDir = File("$base/font").apply { mkdirs() }
+            val assetDir = "fonts"
+            val assetNames = assets.list(assetDir) ?: emptyArray()
+            assetNames.forEach { name ->
+                val target = File(fontDir, name)
+                if (!target.exists() || target.length() == 0L) {
+                    assets.open("$assetDir/$name").use { input ->
+                        target.outputStream().use { output -> input.copyTo(output) }
+                    }
+                }
+            }
+            val wenkai = File(fontDir, "LXGWWenKai-Regular.ttf")
+            if (wenkai.exists() && ReadBookConfig.textFont.isEmpty()) {
+                val sp = getSharedPreferences("local", MODE_PRIVATE)
+                if (!sp.getBoolean("builtinFontApplied", false)) {
+                    ReadBookConfig.durConfig =
+                        ReadBookConfig.durConfig.copy(textFont = wenkai.absolutePath)
+                    sp.edit().putBoolean("builtinFontApplied", true).apply()
+                }
             }
         }
     }
